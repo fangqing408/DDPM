@@ -1,15 +1,15 @@
-This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex 2026.1.19)  9 MAY 2026 19:06
+This is XeTeX, Version 3.141592653-2.6-0.999997 (TeX Live 2025) (preloaded format=xelatex 2025.11.4)  15 MAY 2026 22:29
 entering extended mode
- \write18 enabled.
+ restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
 **ddpm
 (./ddpm.tex
 LaTeX2e <2024-11-01> patch level 2
 L3 programming layer <2025-01-18>
-(d:/TexLive/texlive/2025/texmf-dist/tex/latex/base/article.cls
+(d:/texlive/texlive/2025/texmf-dist/tex/latex/base/article.cls
 Document Class: article 2024/06/29 v1.4n Standard LaTeX document class
-(d:/TexLive/texlive/2025/texmf-dist/tex/latex/base/size11.clo
+(d:/texlive/texlive/2025/texmf-dist/tex/latex/base/size11.clo
 File: size11.clo 2024/06/29 v1.4n Standard LaTeX file (size option)
 )
 \c@part=\count192
@@ -23,21 +23,21 @@ File: size11.clo 2024/06/29 v1.4n Standard LaTeX file (size option)
 \abovecaptionskip=\skip49
 \belowcaptionskip=\skip50
 \bibindent=\dimen141
-) (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsmath/amsmath.sty
+) (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsmath/amsmath.sty
 Package: amsmath 2024/11/05 v2.17t AMS math features
 \@mathmargin=\skip51
 
 For additional information on amsmath, use the `?' option.
-(d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsmath/amstext.sty
+(d:/texlive/texlive/2025/texmf-dist/tex/latex/amsmath/amstext.sty
 Package: amstext 2021/08/26 v2.01 AMS text
- (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsmath/amsgen.sty
+ (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsmath/amsgen.sty
 File: amsgen.sty 1999/11/30 v2.0 generic functions
 \@emptytoks=\toks17
 \ex@=\dimen142
-)) (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsmath/amsbsy.sty
+)) (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsmath/amsbsy.sty
 Package: amsbsy 1999/11/29 v1.2d Bold Symbols
 \pmbraise@=\dimen143
-) (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsmath/amsopn.sty
+) (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsmath/amsopn.sty
 Package: amsopn 2022/04/08 v2.04 operator names
 )
 \inf@bad=\count266
@@ -87,23 +87,23 @@ LaTeX Info: Redefining \Relbar on input line 970.
 \mathdisplay@stack=\toks21
 LaTeX Info: Redefining \[ on input line 2953.
 LaTeX Info: Redefining \] on input line 2954.
-) (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsfonts/amssymb.sty
+) (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsfonts/amssymb.sty
 Package: amssymb 2013/01/14 v3.01 AMS font symbols
- (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsfonts/amsfonts.sty
+ (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsfonts/amsfonts.sty
 Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
 \symAMSa=\mathgroup4
 \symAMSb=\mathgroup5
 LaTeX Font Info:    Redeclaring math symbol \hbar on input line 98.
 LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
 (Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
-)) (d:/TexLive/texlive/2025/texmf-dist/tex/latex/geometry/geometry.sty
+)) (d:/texlive/texlive/2025/texmf-dist/tex/latex/geometry/geometry.sty
 Package: geometry 2020/01/02 v5.9 Page Geometry
- (d:/TexLive/texlive/2025/texmf-dist/tex/latex/graphics/keyval.sty
+ (d:/texlive/texlive/2025/texmf-dist/tex/latex/graphics/keyval.sty
 Package: keyval 2022/05/29 v1.15 key=value parser (DPC)
 \KV@toks@=\toks22
-) (d:/TexLive/texlive/2025/texmf-dist/tex/generic/iftex/ifvtex.sty
+) (d:/texlive/texlive/2025/texmf-dist/tex/generic/iftex/ifvtex.sty
 Package: ifvtex 2019/10/25 v1.7 ifvtex legacy package. Use iftex instead.
- (d:/TexLive/texlive/2025/texmf-dist/tex/generic/iftex/iftex.sty
+ (d:/texlive/texlive/2025/texmf-dist/tex/generic/iftex/iftex.sty
 Package: iftex 2024/12/12 v1.0g TeX engine tests
 ))
 \Gm@cnth=\count278
@@ -118,7 +118,7 @@ Package: iftex 2024/12/12 v1.0g TeX engine tests
 \Gm@layouthoffset=\dimen157
 \Gm@layoutvoffset=\dimen158
 \Gm@dimlist=\toks23
-) (d:/TexLive/texlive/2025/texmf-dist/tex/latex/l3backend/l3backend-xetex.def
+) (d:/texlive/texlive/2025/texmf-dist/tex/latex/l3backend/l3backend-xetex.def
 File: l3backend-xetex.def 2024-05-08 L3 backend support: XeTeX
 \g__graphics_track_int=\count281
 \l__pdf_internal_box=\box54
@@ -178,12 +178,12 @@ LaTeX Font Info:    ... okay on input line 7.
 * \@reversemarginfalse
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
-LaTeX Font Info:    Trying to load font information for U+msa on input line 12.
-(d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsfonts/umsa.fd
+LaTeX Font Info:    Trying to load font information for U+msa on input line 9.
+(d:/texlive/texlive/2025/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 12.
- (d:/TexLive/texlive/2025/texmf-dist/tex/latex/amsfonts/umsb.fd
+LaTeX Font Info:    Trying to load font information for U+msb on input line 9.
+ (d:/texlive/texlive/2025/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
 
@@ -200,12 +200,12 @@ L3 programming layer <2025-01-18>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 2349 strings out of 473832
- 34357 string characters out of 5729486
- 435881 words of memory out of 5000000
- 25420 multiletter control sequences out of 15000+600000
- 566319 words of font info for 71 fonts, out of 8000000 for 9000
+ 2323 strings out of 473831
+ 33745 string characters out of 5729465
+ 442613 words of memory out of 5000000
+ 25403 multiletter control sequences out of 15000+600000
+ 566279 words of font info for 66 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
- 57i,17n,65p,397b,177s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 57i,19n,65p,366b,184s stack positions out of 10000i,1000n,20000p,200000b,200000s
 
 Output written on ddpm.pdf (3 pages).

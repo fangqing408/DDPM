@@ -6,156 +6,100 @@
 
 \begin{document}
 
-\section*{Forward Process (Diffusion Process) Summary}
+\begin{gather*}
+    q(\mathbf{x}_{1:T}|\mathbf{x}_0) = \prod_{t=1}^T q(\mathbf{x}_t|\mathbf{x}_{t-1}) \\[12pt]
+    q(\mathbf{x}_t|\mathbf{x}_{t-1}) = \mathcal{N}(\mathbf{x}_t; \sqrt{1 - \beta_t}\mathbf{x}_{t-1}, \beta_t\mathbf{I}) \\[12pt]
+    \alpha_t = 1 - \beta_t \\[12pt]
+    \mathbf{x}_t = \sqrt{\alpha_t}\mathbf{x}_{t-1} + \sqrt{1 - \alpha_t}\mathbf{z}_{t-1}, \quad \mathbf{z}_{t-1} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}) \\[12pt]
+    \mathbf{x}_{t-1} = \sqrt{\alpha_{t-1}}\mathbf{x}_{t-2} + \sqrt{1 - \alpha_{t-1}}\mathbf{z}_{t-2}, \quad \mathbf{z}_{t-2} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})
+\end{gather*}
 
-The joint distribution of the forward process is defined as:
-\begin{equation}
-    q(\mathbf{x}_{1:T}|\mathbf{x}_0) := \prod_{t=1}^T q(\mathbf{x}_t|\mathbf{x}_{t-1}) \label{eq:joint_dist}
-\end{equation}
-The probability distribution of adding noise at a single timestep $t$:
-\begin{equation}
-    q(\mathbf{x}_t|\mathbf{x}_{t-1}) := \mathcal{N}(\mathbf{x}_t; \sqrt{1 - \beta_t}\mathbf{x}_{t-1}, \beta_t\mathbf{I}) \label{eq:single_transition}
-\end{equation}
-Using the reparameterization trick to generate $\mathbf{x}_t$ from $\mathbf{x}_{t-1}$. \\
-Let $\alpha_t := 1 - \beta_t$ and $\mathbf{z}_{t-1} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$:
-\begin{equation}
-    \mathbf{x}_t = \sqrt{\alpha_t}\mathbf{x}_{t-1} + \sqrt{1 - \alpha_t}\mathbf{z}_{t-1} \label{eq:step_t}
-\end{equation}
-Similarly, for the previous step $\mathbf{x}_{t-1}$:
-\begin{equation}
-    \mathbf{x}_{t-1} = \sqrt{\alpha_{t-1}}\mathbf{x}_{t-2} + \sqrt{1 - \alpha_{t-1}}\mathbf{z}_{t-2} \label{eq:step_t_minus_1}
-\end{equation}
-Substitute Equation (\ref{eq:step_t_minus_1}) into Equation (\ref{eq:step_t}):
 \begin{align*}
     \mathbf{x}_t &= \sqrt{\alpha_t} \left( \sqrt{\alpha_{t-1}}\mathbf{x}_{t-2} + \sqrt{1 - \alpha_{t-1}}\mathbf{z}_{t-2} \right) + \sqrt{1 - \alpha_t}\mathbf{z}_{t-1} \\
-    &= \sqrt{\alpha_t \alpha_{t-1}}\mathbf{x}_{t-2} + \underbrace{\sqrt{\alpha_t(1 - \alpha_{t-1})}\mathbf{z}_{t-2} + \sqrt{1 - \alpha_t}\mathbf{z}_{t-1}}_{\text{Sum of two independent Gaussian noise terms}}
+    &= \sqrt{\alpha_t \alpha_{t-1}}\mathbf{x}_{t-2} + \sqrt{\alpha_t(1 - \alpha_{t-1})}\mathbf{z}_{t-2} + \sqrt{1 - \alpha_t}\mathbf{z}_{t-1}
 \end{align*}
-Since the sum of two independent Gaussian variables $\mathcal{N}(0, \sigma_1^2 \mathbf{I}) + \mathcal{N}(0, \sigma_2^2 \mathbf{I})$ results in $\mathcal{N}(0, (\sigma_1^2 + \sigma_2^2)\mathbf{I})$, we merge the noise terms. The new variance is:
+
+\begin{equation*}
+    \sigma_{\text{new}} = \sqrt{\sigma_1^2 + \sigma_2^2}
+\end{equation*}
+
 \begin{align*}
     \text{Variance} &= \alpha_t(1 - \alpha_{t-1}) + (1 - \alpha_t) \\
     &= \alpha_t - \alpha_t\alpha_{t-1} + 1 - \alpha_t \\
     &= 1 - \alpha_t\alpha_{t-1}
 \end{align*}
-Thus, merging the noise terms into a new standard Gaussian variable $\mathbf{z}' \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$, and continuously applying this substitution down to the initial state $\mathbf{x}_0$ with $\bar{\alpha}_t := \prod_{s=1}^t \alpha_s$, we obtain the closed-form sampling equation:
-\begin{equation}
-    \mathbf{x}_t = \sqrt{\bar{\alpha}_t}\mathbf{x}_0 + \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon} \quad \text{where} \quad \boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I}) \label{eq:closed_form_sampling}
-\end{equation}
 
-The corresponding marginal probability distribution of reaching $\mathbf{x}_t$ directly from the original data $\mathbf{x}_0$ is:
-\begin{equation}
-    q(\mathbf{x}_t|\mathbf{x}_0) = \mathcal{N}(\mathbf{x}_t; \sqrt{\bar{\alpha}_t}\mathbf{x}_0, (1 - \bar{\alpha}_t)\mathbf{I}) \label{eq:marginal_dist}
-\end{equation}
+\begin{gather*}
+    \bar{\alpha}_t = \prod_{s=1}^t \alpha_s \\[12pt]
+    q(\mathbf{x}_t|\mathbf{x}_0) = \mathcal{N}(\mathbf{x}_t; \sqrt{\bar{\alpha}_t}\mathbf{x}_0, (1 - \bar{\alpha}_t)\mathbf{I}) \\[12pt]
+    \mathbf{x}_t = \sqrt{\bar{\alpha}_t}\mathbf{x}_0 + \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon}, \quad \boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})
+\end{gather*}
 
-\vspace{0.5cm}
-\hrule
-\vspace{0.5cm}
+\newpage
 
-\section*{Loss Function Design}
-
-\subsection*{1. From Theoretical Dream to Tractable Loss}
-Our theoretical goal is to force the neural network to perfectly imitate nature's forward diffusion process. This is framed as optimizing the variational upper bound on the negative log-likelihood:
-\begin{equation}
-    \mathbb{E}[-\log p_\theta(\mathbf{x}_0)] \le \mathbb{E}_q \left[ -\log p(\mathbf{x}_T) - \sum_{t \ge 1} \log \frac{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)}{q(\mathbf{x}_t|\mathbf{x}_{t-1})} \right] =: L \label{eq:variational_bound}
-\end{equation}
-\textbf{The Fatal Flaw:} Equation (\ref{eq:variational_bound}) cannot be computed in code because the time directions are mismatched. The neural network $p_\theta$ moves backward (from $t$ to $t-1$), but the denominator $q$ moves forward (from $t-1$ to $t$). We cannot directly compare them.
-
-\subsection*{2. The Mathematical Breakthrough: Reversing Time}
-To solve this time-mismatch, we apply Bayes' theorem to reverse the time direction of the forward process by conditioning it on the absolute ground truth $\mathbf{x}_0$:
-\begin{equation}
-    q(\mathbf{x}_t|\mathbf{x}_{t-1}) = \frac{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) q(\mathbf{x}_t|\mathbf{x}_0)}{q(\mathbf{x}_{t-1}|\mathbf{x}_0)} \label{eq:bayes_rule}
-\end{equation}
-By substituting Equation (\ref{eq:bayes_rule}) into Equation (\ref{eq:variational_bound}) and utilizing the properties of logarithms, we can split the summation into two distinct parts:
-\begin{align*}
-    L &= \mathbb{E}_q \left[ -\log p(\mathbf{x}_T) - \sum_{t=1}^T \log \left( \frac{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t) \cdot q(\mathbf{x}_{t-1}|\mathbf{x}_0)}{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) \cdot q(\mathbf{x}_t|\mathbf{x}_0)} \right) \right] \\
-    &= \mathbb{E}_q \left[ -\log p(\mathbf{x}_T) - \sum_{t=1}^T \log \frac{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)}{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)} \underbrace{- \sum_{t=1}^T \log \frac{q(\mathbf{x}_{t-1}|\mathbf{x}_0)}{q(\mathbf{x}_t|\mathbf{x}_0)}}_{\text{The Telescoping Sum}} \right]
-\end{align*}
-The rightmost summation collapses beautifully via telescoping sum. Most terms cancel out with their adjacent counterparts, leaving only:
 \begin{equation*}
-    - \log q(\mathbf{x}_0|\mathbf{x}_0) + \log q(\mathbf{x}_T|\mathbf{x}_0) = 0 + \log q(\mathbf{x}_T|\mathbf{x}_0)
+    q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) = \frac{q(\mathbf{x}_t|\mathbf{x}_{t-1})q(\mathbf{x}_{t-1}|\mathbf{x}_0)}{q(\mathbf{x}_t|\mathbf{x}_0)}
 \end{equation*}
-By reassembling the surviving terms and grouping them for $t=T$, $t>1$, and $t=1$, we derive the final tractable loss function:
-\begin{equation}
-    L = \mathbb{E}_q \left[ \underbrace{D_{\text{KL}}(q(\mathbf{x}_T|\mathbf{x}_0) \parallel p(\mathbf{x}_T))}_{L_T} + \sum_{t>1} \underbrace{D_{\text{KL}}(q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) \parallel p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t))}_{L_{t-1}} \underbrace{- \log p_\theta(\mathbf{x}_0|\mathbf{x}_1)}_{L_0} \right] \label{eq:loss_kl}
-\end{equation}
-Now, inside $L_{t-1}$, both the AI's prediction ($p_\theta$) and nature's ground truth ($q$) move backward from $t$ to $t-1$. This allows us to calculate their exact difference using Kullback-Leibler (KL) divergence.
 
-\subsection*{3. Fast-Forwarding and the Omniscient Teacher}
-To compute the KL divergence in Equation (\ref{eq:loss_kl}), we rely on Equation (\ref{eq:marginal_dist}) as a ``fast-forward'' mechanism to generate $\mathbf{x}_t$ directly from $\mathbf{x}_0$. 
+\begin{equation*}
+    q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) \propto \exp \left( -\frac{1}{2} \left[ \frac{(\mathbf{x}_t - \sqrt{\alpha_t}\mathbf{x}_{t-1})^2}{\beta_t} + \frac{(\mathbf{x}_{t-1} - \sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0)^2}{1 - \bar{\alpha}_{t-1}} - \frac{(\mathbf{x}_t - \sqrt{\bar{\alpha}_t}\mathbf{x}_0)^2}{1 - \bar{\alpha}_t} \right] \right)
+\end{equation*}
 
-Furthermore, if we possess a ``God's-eye view''—knowing both the current corrupted image $\mathbf{x}_t$ and the ultimate perfect image $\mathbf{x}_0$—nature dictates an absolute correct answer for what the previous step $\mathbf{x}_{t-1}$ looked like. This is called the tractable posterior:
-\begin{equation}
-    q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) = \mathcal{N}(\mathbf{x}_{t-1}; \tilde{\boldsymbol{\mu}}_t(\mathbf{x}_t, \mathbf{x}_0), \tilde{\beta}_t\mathbf{I}) \label{eq:posterior}
-\end{equation}
-This posterior distribution acts as the ``Omniscient Teacher''—the absolute standard that the neural network must learn to mimic.
+\begin{equation*}
+    \text{Exponent} = -\frac{1}{2} \left[ \frac{\mathbf{x}_t^2 - 2\sqrt{\alpha_t}\mathbf{x}_t\mathbf{x}_{t-1} + \alpha_t\mathbf{x}_{t-1}^2}{\beta_t} + \frac{\mathbf{x}_{t-1}^2 - 2\sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0\mathbf{x}_{t-1} + \bar{\alpha}_{t-1}\mathbf{x}_0^2}{1 - \bar{\alpha}_{t-1}} - C_1 \right]
+\end{equation*}
 
-\subsection*{4. The Exact Target Coordinates}
-Equation (\ref{eq:posterior}) defines the shape, but we need its exact coordinates. The true mean (the bullseye, $\tilde{\boldsymbol{\mu}}_t$) and the true variance ($\tilde{\beta}_t$) of the ground truth distribution are explicitly formulated as:
-\begin{equation}
-    \tilde{\boldsymbol{\mu}}_t(\mathbf{x}_t, \mathbf{x}_0) := \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t}\mathbf{x}_0 + \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}\mathbf{x}_t \quad \text{and} \quad \tilde{\beta}_t := \frac{1 - \bar{\alpha}_{t-1}}{1 - \bar{\alpha}_t}\beta_t \label{eq:target_coordinates}
-\end{equation}
-\textbf{The Ultimate Conclusion:} The true mean $\tilde{\boldsymbol{\mu}}_t$ is fundamentally a weighted average of the clean image $\mathbf{x}_0$ and the noisy image $\mathbf{x}_t$. The entire training process of a Diffusion Model boils down to forcing the U-Net's predicted mean to perfectly align with this mathematically derived $\tilde{\boldsymbol{\mu}}_t$.
+\begin{equation*}
+    \text{Exponent} = -\frac{1}{2} \left[ \left( \frac{\alpha_t}{\beta_t} + \frac{1}{1 - \bar{\alpha}_{t-1}} \right)\mathbf{x}_{t-1}^2 - 2\left( \frac{\sqrt{\alpha_t}\mathbf{x}_t}{\beta_t} + \frac{\sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0}{1 - \bar{\alpha}_{t-1}} \right)\mathbf{x}_{t-1} + C_2 \right]
+\end{equation*}
 
-\subsection*{5. Derivation of the Posterior (The Omniscient Teacher)}
-We derive the closed form of $q(\mathbf{x}_{t-1}|\mathbf{x}_t,\mathbf{x}_0)$ using Gaussian conditioning.
+\begin{gather*}
+    a = \frac{\alpha_t}{\beta_t} + \frac{1}{1 - \bar{\alpha}_{t-1}} = \frac{\alpha_t(1 - \bar{\alpha}_{t-1}) + \beta_t}{\beta_t(1 - \bar{\alpha}_{t-1})} = \frac{1 - \bar{\alpha}_t}{\beta_t(1 - \bar{\alpha}_{t-1})} \\[12pt]
+    b = -2 \left( \frac{\sqrt{\alpha_t}\mathbf{x}_t}{\beta_t} + \frac{\sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0}{1 - \bar{\alpha}_{t-1}} \right)
+\end{gather*}
 
-\paragraph{Step 1: Known distributions from the forward process.}
-From the closed-form marginal and the forward transition:
-\[
-q(\mathbf{x}_{t-1}|\mathbf{x}_0) = \mathcal{N}\bigl(\mathbf{x}_{t-1}; \sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0,\; (1-\bar{\alpha}_{t-1})\mathbf{I}\bigr),
-\]
-\[
-q(\mathbf{x}_t|\mathbf{x}_{t-1}) = \mathcal{N}\bigl(\mathbf{x}_t; \sqrt{\alpha_t}\mathbf{x}_{t-1},\; \beta_t\mathbf{I}\bigr).
-\]
+\begin{equation*}
+    -\frac{( \mathbf{x}_{t-1} - \tilde{\boldsymbol{\mu}}_t )^2}{2\tilde{\beta}_t} = -\frac{1}{2} \left( \frac{1}{\tilde{\beta}_t}\mathbf{x}_{t-1}^2 - \frac{2\tilde{\boldsymbol{\mu}}_t}{\tilde{\beta}_t}\mathbf{x}_{t-1} \right) + C_3
+\end{equation*}
 
-\paragraph{Step 2: Joint distribution conditioned on $\mathbf{x}_0$.}
-Since $\mathbf{x}_t = \sqrt{\alpha_t}\mathbf{x}_{t-1} + \sqrt{\beta_t}\,\mathbf{z}$ with $\mathbf{z}\sim\mathcal{N}(\mathbf{0},\mathbf{I})$, the pair $(\mathbf{x}_{t-1},\mathbf{x}_t)$ is jointly Gaussian given $\mathbf{x}_0$. Their means and covariances are:
-\[
-\boldsymbol{\mu}_{t-1} = \sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0,\qquad
-\boldsymbol{\mu}_t = \sqrt{\bar{\alpha}_t}\mathbf{x}_0,
-\]
-\[
-\Sigma_{t-1,t-1} = (1-\bar{\alpha}_{t-1})\mathbf{I},\qquad
-\Sigma_{t,t} = (1-\bar{\alpha}_t)\mathbf{I},
-\]
-\[
-\Sigma_{t-1,t} = \text{Cov}(\mathbf{x}_{t-1},\mathbf{x}_t) = \sqrt{\alpha_t}\,\Sigma_{t-1,t-1} = \sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})\mathbf{I}.
-\]
+\begin{gather*}
+    \frac{1}{\tilde{\beta}_t} = a \implies \tilde{\beta}_t = \frac{\beta_t(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t} \qquad
+    -\frac{2\tilde{\boldsymbol{\mu}}_t}{\tilde{\beta}_t} = b \implies \tilde{\boldsymbol{\mu}}_t = -\frac{\tilde{\beta}_t b}{2}
+\end{gather*}
 
-\paragraph{Step 3: Conditional Gaussian formula.}
-For a jointly Gaussian vector $\begin{pmatrix}\mathbf{a}\\ \mathbf{b}\end{pmatrix}$, the conditional distribution $\mathbf{a}|\mathbf{b}$ is Gaussian with:
-\[
-\mathbb{E}[\mathbf{a}|\mathbf{b}] = \boldsymbol{\mu}_a + \Sigma_{ab}\Sigma_{bb}^{-1}(\mathbf{b}-\boldsymbol{\mu}_b),\qquad
-\text{Cov}(\mathbf{a}|\mathbf{b}) = \Sigma_{aa} - \Sigma_{ab}\Sigma_{bb}^{-1}\Sigma_{ba}.
-\]
-Here set $\mathbf{a}=\mathbf{x}_{t-1}$, $\mathbf{b}=\mathbf{x}_t$. Then:
-\[
-\tilde{\boldsymbol{\mu}}_t = \sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0 + 
-\frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}\,(\mathbf{x}_t - \sqrt{\bar{\alpha}_t}\mathbf{x}_0).
-\]
+\begin{align*}
+    \tilde{\boldsymbol{\mu}}_t &= \frac{\beta_t(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t} \left( \frac{\sqrt{\alpha_t}\mathbf{x}_t}{\beta_t} + \frac{\sqrt{\bar{\alpha}_{t-1}}\mathbf{x}_0}{1 - \bar{\alpha}_{t-1}} \right) \\[12pt]
+    &= \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}\mathbf{x}_t + \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t}\mathbf{x}_0
+\end{align*}
 
-\paragraph{Step 4: Simplify the mean.}
-Expand and collect the coefficients of $\mathbf{x}_0$ and $\mathbf{x}_t$:
-\[
-\tilde{\boldsymbol{\mu}}_t = \underbrace{\left(\sqrt{\bar{\alpha}_{t-1}} - \frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})\sqrt{\bar{\alpha}_t}}{1-\bar{\alpha}_t}\right)}_{\displaystyle = \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1-\bar{\alpha}_t}}\mathbf{x}_0
-\;+\; \underbrace{\frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}}_{\displaystyle = \frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}}\mathbf{x}_t.
-\]
-The simplification of the $\mathbf{x}_0$ coefficient uses the identity $1-\bar{\alpha}_t = \beta_t + \alpha_t(1-\bar{\alpha}_{t-1})$ and $\sqrt{\bar{\alpha}_t}=\sqrt{\alpha_t\bar{\alpha}_{t-1}}$. The final result is:
-\[
-\tilde{\boldsymbol{\mu}}_t = \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1-\bar{\alpha}_t}\mathbf{x}_0 + \frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}\mathbf{x}_t.
-\]
+\begin{equation*}
+    \mathbf{x}_0 = \frac{1}{\sqrt{\bar{\alpha}_t}}\left(\mathbf{x}_t - \sqrt{1 - \bar{\alpha}_t}\mathbf{z}_t\right)
+\end{equation*}
 
-\paragraph{Step 5: Conditional variance.}
-\[
-\tilde{\beta}_t\mathbf{I} = (1-\bar{\alpha}_{t-1})\mathbf{I} - 
-\frac{\alpha_t(1-\bar{\alpha}_{t-1})^2}{1-\bar{\alpha}_t}\mathbf{I}
-= \frac{(1-\bar{\alpha}_{t-1})\beta_t}{1-\bar{\alpha}_t}\mathbf{I}.
-\]
-Hence $\tilde{\beta}_t = \dfrac{1-\bar{\alpha}_{t-1}}{1-\bar{\alpha}_t}\beta_t$.
+\begin{align*}
+    \tilde{\boldsymbol{\mu}}_t &= \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}\mathbf{x}_t + \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t} \cdot \left[ \frac{1}{\sqrt{\bar{\alpha}_t}}\left(\mathbf{x}_t - \sqrt{1 - \bar{\alpha}_t}\mathbf{z}_t\right) \right] \\[12pt]
+    &= \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}\mathbf{x}_t + \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{(1 - \bar{\alpha}_t)\sqrt{\alpha_t}\sqrt{\bar{\alpha}_{t-1}}}\mathbf{x}_t - \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t \sqrt{1 - \bar{\alpha}_t}}{(1 - \bar{\alpha}_t)\sqrt{\alpha_t}\sqrt{\bar{\alpha}_{t-1}}}\mathbf{z}_t \\[12pt]
+    &= \left[ \frac{\alpha_t(1 - \bar{\alpha}_{t-1}) + \beta_t}{(1 - \bar{\alpha}_t)\sqrt{\alpha_t}} \right] \mathbf{x}_t - \frac{\beta_t}{\sqrt{\alpha_t}\sqrt{1 - \bar{\alpha}_{t-1}}}\mathbf{z}_t \\[12pt]
+    &= \frac{1}{\sqrt{\alpha_t}}\mathbf{x}_t - \frac{\beta_t}{\sqrt{\alpha_t}\sqrt{1 - \bar{\alpha}_t}}\mathbf{z}_t \\[12pt]
+    &= \frac{1}{\sqrt{\alpha_t}}\left(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}}\mathbf{z}_t\right)
+\end{align*}
 
-Therefore,
-\[
-q(\mathbf{x}_{t-1}|\mathbf{x}_t,\mathbf{x}_0) = \mathcal{N}\bigl(\mathbf{x}_{t-1};\; \tilde{\boldsymbol{\mu}}_t,\; \tilde{\beta}_t\mathbf{I}\bigr),
-\]
-which matches Equation (\ref{eq:target_coordinates}).
+\begin{equation*}
+    q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) = \mathcal{N}\left(\mathbf{x}_{t-1}; \frac{1}{\sqrt{\alpha_t}}\left(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}}\mathbf{z}_t\right), \tilde{\beta}_t\mathbf{I}\right)
+\end{equation*}
+
+\newpage
+
+\begin{align*}
+    L_{\text{VLB}} &= \mathbb{E}_{q(\mathbf{x}_{0:T})} \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ \log \frac{\prod_{t=1}^T q(\mathbf{x}_t|\mathbf{x}_{t-1})}{p_\theta(\mathbf{x}_T) \prod_{t=1}^T p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ -\log p_\theta(\mathbf{x}_T) + \sum_{t=1}^T \log \frac{q(\mathbf{x}_t|\mathbf{x}_{t-1})}{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ -\log p_\theta(\mathbf{x}_T) + \sum_{t=2}^T \log \frac{q(\mathbf{x}_t|\mathbf{x}_{t-1})}{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} + \log \frac{q(\mathbf{x}_1|\mathbf{x}_0)}{p_\theta(\mathbf{x}_0|\mathbf{x}_1)} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ -\log p_\theta(\mathbf{x}_T) + \sum_{t=2}^T \log \left( \frac{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)}{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} \cdot \frac{q(\mathbf{x}_t|\mathbf{x}_0)}{q(\mathbf{x}_{t-1}|\mathbf{x}_0)} \right) + \log \frac{q(\mathbf{x}_1|\mathbf{x}_0)}{p_\theta(\mathbf{x}_0|\mathbf{x}_1)} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ -\log p_\theta(\mathbf{x}_T) + \sum_{t=2}^T \log \frac{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)}{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} + \sum_{t=2}^T \log \frac{q(\mathbf{x}_t|\mathbf{x}_0)}{q(\mathbf{x}_{t-1}|\mathbf{x}_0)} + \log \frac{q(\mathbf{x}_1|\mathbf{x}_0)}{p_\theta(\mathbf{x}_0|\mathbf{x}_1)} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ -\log p_\theta(\mathbf{x}_T) + \sum_{t=2}^T \log \frac{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)}{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} + \log \frac{q(\mathbf{x}_T|\mathbf{x}_0)}{q(\mathbf{x}_1|\mathbf{x}_0)} + \log \frac{q(\mathbf{x}_1|\mathbf{x}_0)}{p_\theta(\mathbf{x}_0|\mathbf{x}_1)} \right] \\[12pt]
+    &= \mathbb{E}_q \left[ \log \frac{q(\mathbf{x}_T|\mathbf{x}_0)}{p_\theta(\mathbf{x}_T)} + \sum_{t=2}^T \log \frac{q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0)}{p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)} - \log p_\theta(\mathbf{x}_0|\mathbf{x}_1) \right] \\[12pt]
+    &= \mathbb{E}_q \left[ \underbrace{D_{\text{KL}}(q(\mathbf{x}_T|\mathbf{x}_0) \parallel p_\theta(\mathbf{x}_T))}_{L_T} + \underbrace{\sum_{t=2}^T D_{\text{KL}}(q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) \parallel p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t))}_{L_{t-1}} - \underbrace{\log p_\theta(\mathbf{x}_0|\mathbf{x}_1)}_{L_0} \right]
+\end{align*}
 
 \end{document}

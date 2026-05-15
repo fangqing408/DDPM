@@ -1,0 +1,158 @@
+# DDPM 总结
+
+## 0. 前置知识
+
+### 1. 条件概率链式分解
+
+若无特殊说明，联合概率指的就是对应事件在联合概率矩阵里面的值，联合概率可以逐步展开成后面的形式：$$P(A,B,C)=P(C|B,A)P(B|A)P(A)$$
+
+- 假设 A 代表下雨，B 代表带伞，C 代表衣服没湿，那么等号左边可以翻译为下雨带伞衣服没湿的概率，右边翻译为，下雨，在下雨的条件下下带了伞，在下雨带伞的条件下衣服没湿的概率，是相等的。
+
+> 可以总结为：联合概率 = 一步一步条件生成。
+
+### 2. 马尔科夫链
+
+若满足 $A \rightarrow B \rightarrow C$ 则有：$$P(C|B,A)=P(C|B)$$
+
+- 假设 A 代表昨天温度，B 代表今天温度，C 代表明天温度，如果天气满足马尔科夫性，那么已经知道今天温度了，昨天温度对明天不再提供额外信息。
+
+> 可以总结为：已知当前状态后，未来与更早历史无关。
+
+因此满足马尔科夫链性质的话：$$P(A,B,C)=P(C|B)P(B|A)P(A)$$
+
+### 3. 从 KL 散度到负对数似然到均方误差 (MSE) 的 推导
+
+在信息论中，KL 散度用于衡量真实分布 $q(x)$ 与预测分布 $p_\theta(x)$ 之间的差异：$$KL(q \parallel p_\theta) = \mathbb{E}_{x \sim q} \left[ \log \frac{q(x)}{p_\theta(x)} \right]$$利用对数性质将其拆开：$$KL(q \parallel p_\theta) = \underbrace{\mathbb{E}_{x \sim q} [\log q(x)]}_{\text{第一项}} - \underbrace{\mathbb{E}_{x \sim q} [\log p_\theta(x)]}_{\text{第二项}}$$第一项仅包含真实分布 $q(x)$。因为大自然的客观分布不随模型参数改变，所以它是一个不可改变的常数。第二项恰好是模型在真实数据上的负对数似然。由此可知：最小化分布差距（KL 散度），严格等价于最小化负对数似然（NLL），在后文的 DDPM 和相关的生成模型里面都是最小化该数值。
+
+在生成模型中，通常假设这两个分布均为高斯分布：真实分布 $q = \mathcal{N}(\mu_1, \sigma_1^2)$，预测分布 $p_\theta = \mathcal{N}(\mu_2, \sigma_2^2)$。此时 KL 散度的解析解为：$$KL(q \parallel p_\theta) = \log\frac{\sigma_2}{\sigma_1} + \frac{\sigma_1^2 + (\mu_1-\mu_2)^2}{2\sigma_2^2} - \frac12$$在实际工程（如 DDPM）中，为了稳定训练，方差 $\sigma_1$ 和 $\sigma_2$ 通常被设定为固定的常数，不由网络预测。此时，上述公式中除了模型预测的 $\mu_2$ 之外，其余全为常数。我们将常数项合并为 $C$，则上面的式子可以改写为：$$KL(q \parallel p_\theta) = C + \frac{1}{2\sigma_2^2} (\mu_1 - \mu_2)^2$$去掉常数项与固定系数后，真正需要优化的核心项仅剩 $(\mu_1 - \mu_2)^2$。
+
+### 4. 参数重整化（Reparameterization Trick）
+
+若 $x\sim\mathcal N(\mu,\sigma^2)$ 则可以改写为：$$z\sim\mathcal N(0,1),\quad x=\mu+\sigma z$$将随机性放到 $z$ 上面，网络参数放到确定性表达式，这样采样过程可微，能够反向传播。
+
+假设网络输出均值 $\mu$ 和方差 $\sigma$，我们要得到 $x$。$x \sim \mathcal{N}(\mu, \sigma^2)$，因为 “采样” 在计算机里是一个随机选择的过程（类似掷色子）。如果微调 $\mu$，输出的 $x$ 随机性不可预测。对于反向传播来说，采样操作是一个黑盒，它没有解析导数，梯度传到这里就断了，无法更新生成 $\mu$ 和 $\sigma$ 的网络参数。
+
+将 $x$ 改写为：$$x = \mu + \sigma \cdot \epsilon,\quad \epsilon \sim \mathcal{N}(0, I)$$ 把所有的随机性都赶到了 $\epsilon$ 身上。$\epsilon$ 是从标准正态分布里抽出来的，它不依赖于任何网络参数。在确定了 $\epsilon$ 之后（在这一次前向传播中），$x$ 就变成了一个关于 $\mu$ 和 $\sigma$ 的确定性代数方程。此时 $x$ 对参数是可微的：$$\frac{\partial x}{\partial \mu} = 1,\quad \frac{\partial x}{\partial \sigma} = \epsilon$$ 梯度现在可以顺着 $x \rightarrow \mu \rightarrow parameters$ 回传。
+
+## 1. Diffusion 的扩散和逆扩散过程
+
+### 1. 扩散过程和逆扩散过程的概述和直观理解
+
+扩散过程可以看作是从一张图片的原始分布上逐步的增加高斯噪声直到最后形成一个各项独立的高斯分布，然后逆扩散过程可以看作从噪声分布里面逐步的减去高斯噪声还原原始的分布然后采样得到生成的样本。
+
+$p(x)$ 代表分布规律（函数），当填入具体数据 $x_0$ 时，$p(x_0)$ 计算出来的是该数据对应的概率密度（分数）。分布的含义是大自然规定的全局规律。比如人类身高的钟形曲线。这个总函数记为 $p(x)$。概率代表具体的指标。如果把一张完美的高清人脸图片作为 $x_0$ 代入函数，算出来的 $p(x_0)$ 分数会极高（比如 0.95），如果代入的是一张电视机雪花噪点图，算出来的分数就会无限接近于 0。目标是调整自身参数，使得它生成的图片在代入大自然的真实分布 $p(x_0)$ 时，算出来的分数都极高。
+
+在统计学中 “概率” 和 “似然” 是一对方向完全相反的概念：
+- 概率（由因导果）：参数已知，预测未来数据。例子：已经知道这枚色子是正常的（参数固定），预测连续掷出 3 次六点的概率。
+- 似然（由果溯因）：数据已知，推测背后参数。例子：地上 100 颗色子全都是六点（数据固定）。理论 A 说 “色子正常”，理论 B 说 “色子不正常”。理论 B 解释现实的似然度更高。
+- 极大似然估计（MLE）：现实中的训练集是固定死的 “果”，网络的权重 $\theta$ 是未知的 “因”。通过反向传播不断调整网络参数，直到这组参数能够让这 10 万张人脸出现的 “似然度” 达到最大。
+
+以单层 $\int p(x_0, x_1) dx_1 = p(x_0)$ 为例，在概率论中，离散情况假设最终结果 $x_0$ 只有 “帅哥”、“美女” 两种可能，前一步 “轮廓 1”、“轮廓 2”、“轮廓 3” 三种可能。最终生成帅哥的总概率，就是把所有可能由不同轮廓是帅哥的概率加在一起，即：$$p(x_0) = \sum_{x_1} p(x_0, x_1)$$
+
+但在 DDPM 中，中间的噪声图片 $x_1$ 是连续的像素值。求和符号 $\sum$ 改为积分符号 $\int$，式子为：$$\int p(x_0, x_1) dx_1 = p(x_0)$$
+$p(x_0, x_1)$ 代表联合概率（可以想象成人脸就两个像素点，假设三维空间中 $z$ 方向代表的是经过操作后形成 $x_0$ 的概率，联合概率分布代表的是三维空间中，每个 $xy$ 平面上的点所对应的能形成 $x_0$ 所对应的概率值），即 “前一步刚好是某种噪声 $x_1$，且最终刚好是完美人脸 $x_0$” 的概率。DDPM 有 1000 层（$T=1000$），则：$$p(x_0) = \int \cdots \int p(x_0, x_1, \dots, x_{1000}) \, dx_1 dx_2 \cdots dx_{1000}$$
+
+### 2. 单层 VAE 原理与置信下界
+
+在生成模型中，终极目标是极大化真实数据 $x$ 的对数似然 $\log p_\theta(x)$，也就是极小化负对数似然。假设图像的生成依赖于某个隐藏在背后的低维密码 $z$（隐变量），根据全概率公式：$$p_\theta(x) = \int p_\theta(x|z)p(z) \, dz$$ VAE 的做法是既然不能盲目穷举 $z$，引入一个 “编码器 (目击者)” $q_\phi(z|x)$。给定一张图 $x$，让编码器直接告诉我们 “哪个区域的 $z$ 最有可能生成这张图”，我们只在这个高概率区域去抽样 $z$，从而避开盲目积分。
+
+第一步：写出对数似然$$\log p_\theta(x) = \log \int p_\theta(x|z)p(z) \, dz$$
+
+第二步：强行塞入编码器（分子分母同乘 $q_\phi$）在积分号内部，乘以一个 $1 = \frac{q_\phi(z|x)}{q_\phi(z|x)}$：$$\log p_\theta(x) = \log \int q_\phi(z|x) \frac{p_\theta(x|z)p(z)}{q_\phi(z|x)} \, dz$$
+    
+第三步：将积分转化为数学期望 $\mathbb{E}$，在概率论中，对一个概率分布 $q$ 求积分，等价于求这个分布下的期望：$$\log p_\theta(x) = \log \left( \mathbb{E}_{z \sim q_\phi(z|x)} \left[ \frac{p_\theta(x|z)p(z)}{q_\phi(z|x)} \right] \right)$$
+
+第四步：因为 $\log$ 是一个凹函数（上凸），根据琴生不等式 $\log(\mathbb{E}[Y]) \ge \mathbb{E}[\log(Y)]$，我们可以把 $\log$ 强行塞进期望的括号里面。塞进去之后，等号变成了大于等于号：$$\log p(x) \ge \mathbb{E}_{z \sim q_\phi(z|x)} \left[ \log \frac{p_\theta(x|z)p(z)}{q_\phi(z|x)} \right]$$不等式右边就是变分下界 (Variational Lower Bound, VLB / ELBO)。
+
+$$\log \frac{p_\theta(x|z)p(z)}{q_\phi(z|x)} = \log p_\theta(x|z) + \log \frac{p(z)}{q_\phi(z|x)}$$
+
+$$\text{ELBO} = \mathbb{E}_{z \sim q_\phi(z|x)} [\log p_\theta(x|z)] + \mathbb{E}_{z \sim q_\phi(z|x)} \left[ \log \frac{p(z)}{q_\phi(z|x)} \right]$$
+
+KL 散度的标准数学定义是：$$KL(q \parallel p) = \mathbb{E}_{x \sim q} \left[ \log \frac{q(x)}{p(x)} \right]$$
+拆出来的第二项：$$- KL(q_\phi(z|x) \parallel p(z))$$
+然后 VAE 的展开式可以写为：$$\text{ELBO} = \underbrace{\mathbb{E}_{z \sim q_\phi(z|x)} [\log p_\theta(x|z)]}_{\text{重建似然 (Reconstruction)}} - \underbrace{KL(q_\phi(z|x) \parallel p(z))}_{\text{KL 散度惩罚 (Regularization)}}$$
+
+散度必须是两个完整的概率分布曲线之间的整体面积差距。比如 $KL(q(z) \parallel p(z))$，括号两侧必须都是完整的函数。但是重建似然项：$$\mathbb{E}_{z \sim q_\phi(z|x)} [\log p_\theta(x|z)]$$
+$\log$ 里面的自变量 $x$ 是喂给 AI 的一张特定的照片。它是一个固定的、确定的、孤立的数据点（Sample），而不是一个连续的分布函数。无法去算 “一张照片” 和一个 “分布曲线” 之间的 KL 散度。最大化单张图的对数似然是通过一个个具体样本去逼近最小化全局散度的工程实现。直白点讲：传进来的 x 的一张照片生成的是目标为 x 的一个分布，所以没办法计算散度。
+
+- 编码器：一张真实照片 $x$。编码器 $q_\phi(z|x)$ 看了眼照片，应该给出了一个猜测范围，也就是密码 $z$ 的大概在的区域，输出一个分布，实际的训练中只会选取一个 $z$。
+
+- 解码器： 解码器拿到了这个具体的 $z$。解码器应该生成这个 $z$ 代表的图片的分布，本质上是每个像素计算均值和方差，但是和 DDPM 一样固定了方差，只输出 $\hat x$，代表分布的均值图，实际的计算分布的位置变成了计算 MSE。
+
+- 把手里的真图 $x$，放在每个 $z$ 形成的图片分布上。计算真图在 $z$ 的条件下的发生概率，即 $p_\theta(x|z)$ 的值，也就是 MSE。然后，应该乘以一开始编码器猜中这个 $z$ 的概率密度 $q_\phi(z|x)$，但是因为本身 $z$ 就是抽样出来的一个，所以也不需要乘上他的概率密度了，多次抽样本身就代替了概率密度。
+
+- 理论上，为了不让编码器乱猜，需要计算编码器分布 $q_\phi(z|x)$ 和标准分布 $p(z)$ 之间的面积差（散度）。但实际上，因为 “强行假设” 了两者都是高斯分布，复杂的微积分被化简成了一个纯代数的解析解公式。本质上根本不需要计算任何概率，只需要直接拿第一步编码器输出的均值 $\mu$ 和方差 $\sigma^2$，根据高斯分布直接能计算两个高斯分布之间的解析解。
+
+### 3. 扩散过程（Diffusion Process）
+
+给定真实数据分布中的样本 $x_0 \sim q(x)$ 扩散过程会不断向数据中加入高斯噪声。
+
+DDPM 定义每一步扩散为：$$q(x_t|x_{t-1})=\mathcal N \left(x_t;\sqrt{1-\beta_t}\,x_{t-1},\beta_t\,I \right)$$
+
+等价写法是：$$x_t=\sqrt{1-\beta_t}x_{t-1}+\sqrt{\beta_t}\epsilon, \quad \epsilon\sim\mathcal N(0,I)$$
+
+原因可以参考参数重整化。
+
+- $\beta_t$ 代表第 $t$ 步加入的噪声强度。
+- $I$ 代表单位矩阵。
+- $\sqrt{1-\beta_t}$ 代表原图信息的保留。
+- $\sqrt{\beta_t}\epsilon$ 代表新加入的高斯噪声。
+
+由于 $x_t$ 只依赖 $x_{t-1}$ 因此：$$q(x_t|x_{t-1},x_{t-2},...,x_0)=q(x_t|x_{t-1})$$ 即满足马尔科夫性质，因此整个前向扩散联合分布可以写为：$$q(x_{1:T}|x_0)=\prod_{t=1}^{T}q(x_t|x_{t-1})$$
+
+扩散过程可以直观的理解为每一步都会保留一部分原始图像并且加入一部分随机噪声，随着 $t \uparrow$，原始图像信息不断被破坏。最终 $x_T \approx \mathcal N(0,I)$，即变成纯高斯噪声。
+
+> 可以总结为：diffusion 本质上是把真实数据分布逐渐变化为高斯分布。
+
+定义：$$\alpha_t = 1-\beta_t,\quad \bar\alpha_t=\prod_{i=1}^{t}\alpha_i$$则可以直接从 $x_0$ 一步采样得到 $x_t$，即：$$q(x_t|x_0)=\mathcal N\left(x_t;\sqrt{\bar \alpha_t }x_0,(1-\bar\alpha_t)I\right)$$
+
+对应重参数化形式为 $x_t=\sqrt{\bar\alpha_t}x_0+\sqrt{1-\bar\alpha_t}\epsilon$，其中 $\epsilon\sim\mathcal N(0,I)$
+
+>>>>> 证明参考 ddpm.pdf 第 1 页
+
+正常情况下 $x_0 \rightarrow x_1 \rightarrow x_2 \rightarrow \cdots \rightarrow x_t$ 需要迭代很多次，但由于高斯分布可叠加，多个高斯噪声仍然是高斯噪声，因此可以直接得到 $x_t$，而不需要真的一步一步加噪，这极大提升了训练效率。训练时通常，随机采样一个 $t$，直接生成对应的 $x_t$，让网络预测加入的噪声，而不是完整模拟整个扩散链。 
+
+越来越接近噪声分布的时候可以让 $\beta_t$ 大一点，一开始添加的噪声不要太大，慢慢的变大，具体代码的实现是添加一个 1e-4 到 0.02 的步长长度的等差数列，所以逆向过程很快的能展现轮廓，然后慢慢的刻画细节。 
+
+### 4. 逆扩散过程 (Reverse process)
+
+逆过程的目标是从纯高斯噪声 $x_T \sim \mathcal{N}(0, I)$ 中一步步去噪，最终恢复出真实的原始数据 $x_0$。
+如果前向过程的步长 $\beta_t$ 足够小，数学上可以证明逆过程的单步转移概率 $q(x_{t-1}|x_t)$ 也会是一个高斯分布。
+
+但问题在于，我们无法直接计算出真正的逆向概率 $q(x_{t-1}|x_t)$，因为贝叶斯公式里：$$q(x_{t-1}|x_t) = \frac{q(x_t|x_{t-1}) \cdot q(x_{t-1})}{q(x_t)}$$
+分子左边 $q(x_t|x_{t-1})$：就是我们人为定义的前向加噪过程，公式早就定好了。分子右边 $q(x_{t-1})$： 这一步稍微模糊一点图的概率分布。分母 $q(x_t)$： 当前这张充满噪点的图的边缘概率。
+
+用贝叶斯公式去求真实的逆向过程，分母里的这个 $q(x_t)$ 无法计算，因为 $q(x_t)$，它的物理意义是：计算所有可能的图片经过 $t$ 次加噪后，恰好生成这张特定的噪点图 $x_t$ 的概率总和 $$q(x_t) = \int q(x_t|x_0) \cdot q(x_0) \, dx_0$$
+
+不知道 $q(x_0)$ 的公式是什么 $q(x_0)$ 是真实世界图像的分布。这个无法得到。要是把上面的积分强行变成离散的加法去算，计算仅仅一张噪点图在某一个步骤的分母 $q(x_t)$，需要拿出第很多张原图，算一下它加噪变成这张图的概率，复杂度也是不可接受的。
+
+因此，DDPM 提出用一个参数化的神经网络模型 $p_\theta$ 来近似估计这个逆过程。逆向过程同样是一个马尔科夫链：$$p_\theta(x_{0:T}) = p(x_T)\prod_{t=1}^{T}p_\theta(x_{t-1}|x_t)$$
+其中，神经网络在第 $t$ 步的预测分布被定义为一个高斯分布：$$p_\theta(x_{t-1}|x_t) = \mathcal{N}(x_{t-1}; \mu_\theta(x_t, t), \Sigma_\theta(x_t, t))$$
+$x_t$ 代表当前时刻带噪的图像。$t$ 代表当前的时间步（告知网络现在处于去噪的哪个阶段）。$\mu_\theta$ 和 $\Sigma_\theta$ 是神经网络需要学习并预测的均值和方差（注：在 DDPM 的实际代码实现中，方差 $\Sigma_\theta$ 通常被固定为与 $\beta_t$ 相关的常数，网络只需预测均值 $\mu_\theta$ 即可，这和我们之前推导 VAE 时强制固定方差求 MSE 的套路一致）。
+
+可以总结为：逆向过程本质上是训练一个神经网络 $p_\theta$，让它学会在给定当前噪声图 $x_t$ 和时间步 $t$ 的情况下，预测出上一步稍微清晰一点的图像分布。
+
+虽然 $q(x_{t-1}|x_t)$ 没法直接算。但如果我们不仅知道当前的噪声图 $x_t$，还知道最终的无噪原图 $x_0$，那么这一步的真实逆向过程 $q(x_{t-1}|x_t, x_0)$ 就可以通过公式精确表达。
+
+通过贝叶斯展开：$$q(x_{t-1}|x_t, x_0) = q(x_t|x_{t-1}, x_0) \frac{q(x_{t-1}|x_0)}{q(x_t|x_0)}$$
+
+再结合高斯分布的概率密度函数和指数项内的配方法：$$f(x) = \frac{1}{\sqrt{2\pi}\sigma} e^{-\frac{(x-\mu)^2}{2\sigma^2}},\quad ax^2+bx = a(x+\frac{b}{2a})^2+C$$
+可以推导出这个后验分布依然是一个完美的高斯分布：$$q(x_{t-1}|x_t, x_0) = \mathcal{N}(x_{t-1}; \tilde{\mu}(x_t, x_0), \tilde{\beta}_t I)$$
+
+>>>>> 证明参考 ppdm.pdf 第 2 页
+
+也就是说，给定 $x_t$ 和 $x_0$，我们可以通过数学公式直接精确计算出 $x_{t-1}$ 应该长什么样子。这为训练神经网络 $p_\theta$ 提供了极其完美的约束目标，既然网络 $p_\theta$ 是在预测均值 $\mu_\theta(x_t, t)$，那我们就逼着网络的预测结果，尽可能地去靠近这个算出来的真实后验均值 $\tilde{\mu}(x_t, x_0)$。
+
+### 5. 目标数据分布的似然函数
+
+在生成模型中，我们的终极目标是最大化真实数据 $\mathbf{x}_0$ 的对数似然函数 $\log p_\theta(\mathbf{x}_0)$，也就是最小化负对数似然。但由于扩散模型的隐变量链条极其漫长（从 $\mathbf{x}_1$ 到 $\mathbf{x}_T$），不好直接计算。为了解决这个数学死路，DDPM 继承了 VAE 的衣钵，引入了变分上界（Variational Upper Bound）。
+
+核心数学推导在负对数似然函数的基础上，强行加上一个永远大于等于 0 的 KL 散度 $D_{\text{KL}}$。只要我们把这个上界压小，负对数似然就会被顺带着压小，从而等价于让我们的目标（对数似然）变得越来越大：$$-\log p_\theta(\mathbf{x}_0) \le -\log p_\theta(\mathbf{x}_0) + D_{\text{KL}}\left(q(\mathbf{x}_{1:T}|\mathbf{x}_0) \parallel p_\theta(\mathbf{x}_{1:T}|\mathbf{x}_0)\right)$$
+我们利用 KL 散度的定义公式（$\mathbb{E}[\log \frac{q}{p}]$）将右边彻底展开：$$= -\log p_\theta(\mathbf{x}_0) + \mathbb{E}_{\mathbf{x}_{1:T} \sim q(\mathbf{x}_{1:T}|\mathbf{x}_0)} \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})/p_\theta(\mathbf{x}_0)} \right]$$
+利用对数的除法变减法原则（$\log\frac{A}{B/C} = \log\frac{A}{B} + \log C$），将分母上的 $p_\theta(\mathbf{x}_0)$ 强行拆出来：$$= -\log p_\theta(\mathbf{x}_0) + \mathbb{E}_q \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})} + \log p_\theta(\mathbf{x}_0) \right]$$
+此时，括号里的 $\log p_\theta(\mathbf{x}_0)$ 拿到期望外面去，刚好和最前面的 $-\log p_\theta(\mathbf{x}_0)$ 抵消。公式变为：$$= \mathbb{E}_q \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})} \right]$$
+由此，正式定义整个扩散模型的终极损失函数目标：$$\text{Let } L_{\text{VLB}} = \mathbb{E}_{q(\mathbf{x}_{0:T})} \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})} \right] \ge -\mathbb{E}_{q(\mathbf{x}_0)} \log p_\theta(\mathbf{x}_0)$$
+
+为了进一步对交叉熵上界 $L_{\text{VLB}}$ 进行展开与化简，我们需要将其拆解为单步的形式。经过多步贝叶斯公式代换与错项相消（Telescoping sum），$L_{\text{VLB}}$ 最终可以完美转化并拆解为三个具有明确物理意义的独立项之和：$$L_{\text{VLB}} = L_T + \sum_{t=2}^T L_{t-1} + L_0$$各分项的物理含义：$L_T$ 代表先验匹配项（Prior Matching Term）：$$L_T = D_{\text{KL}}(q(\mathbf{x}_T|\mathbf{x}_0) \parallel p_\theta(\mathbf{x}_T))$$衡量前向加噪最终状态的分布与我们设定的标准高斯先验 $p_\theta(\mathbf{x}_T) = \mathcal{N}(\mathbf{0}, \mathbf{I})$ 之间的 KL 散度。因为加噪方案固定，该项在训练时没有梯度，是一个常数。$L_{t-1}$ 代表逆向去噪匹配项（Denoising Term）：$$L_{t-1} = D_{\text{KL}}(q(\mathbf{x}_{t-1}|\mathbf{x}_t, \mathbf{x}_0) \parallel p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t))$$扩散模型最核心的训练项。它强迫神经网络预测的单步逆扩散去噪分布 $p_\theta(\mathbf{x}_{t-1}|\mathbf{x}_t)$ 去逼近在“开天眼”已知原图 $\mathbf{x}_0$ 条件下的真实后验高斯分布。$L_0$ 代表原始重建项（Reconstruction Term）：$$L_0 = -\log p_\theta(\mathbf{x}_0|\mathbf{x}_1)$$在已知最后一步微弱噪声图 $\mathbf{x}_1$ 的情况下，对原始干净图像 $\mathbf{x}_0$ 进行像素级重构的负对数似然（在方差固定时退化为 MSE 损失）。
+
+>>>>> 证明参考 ppdm.pdf 第 3 页
