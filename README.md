@@ -172,7 +172,7 @@ $$
 拆出来的第二项：
 
 $$
-`- KL(q_\phi(z|x) \parallel p(z))`
+= - KL(q_\phi(z|x) \parallel p(z))
 $$
 
 然后 VAE 的展开式可以写为：
