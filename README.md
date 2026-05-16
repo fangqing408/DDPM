@@ -303,7 +303,7 @@ $$
 f(x) = \frac{1}{\sqrt{2\pi}\sigma} e^{-\frac{(x-\mu)^2}{2\sigma^2}},\quad ax^2+bx = a(x+\frac{b}{2a})^2+C
 $$
 
-可以推导出这个后验分布依然是一个完美的高斯分布：
+可以推导出这个后验分布依然是一个完美的高斯分布，其中只有 $z_t$ 需要网络预测，其他的值都是已知的，所以逆扩散过程是逐渐预测 $z_t$ 的过程：
 
 $$
 \tilde{\mu}_t=\frac{1}{\sqrt{\alpha_t}}\left(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}}\mathbf{z}_t\right)\quad\mathbf{z}_t\sim\mathcal{N}(\mathbf{0}, \mathbf{I})
@@ -340,19 +340,19 @@ $$
 利用对数的除法变减法原则（ $\log\frac{A}{B/C} = \log\frac{A}{B} + \log C$ ），将分母上的 $p_\theta(x_0)$ 强行拆出来：
 
 $$
-= -\log p_\theta(x_0) + \mathbb{E}_q \left[ \log \frac{q(x_{1:T}|x_0)}{p_\theta(x_{0:T})} + \log p_\theta(x_0) \right]
+= -\log p_\theta(x_0) + \mathbb{E}_{x_{1:T} \sim q(x_{1:T}|x_0)}\left[ \log \frac{q(x_{1:T}|x_0)}{p_\theta(x_{0:T})} + \log p_\theta(x_0) \right]
 $$
 
 此时，括号里的 $\log p_\theta(x_0)$ 拿到期望外面去，刚好和最前面的 $-\log p_\theta(x_0)$ 抵消。公式变为：
 
 $$
-= \mathbb{E}_q \left[ \log \frac{q(x_{1:T}|x_0)}{p_\theta(x_{0:T})} \right]
+= \mathbb{E}_{x_{1:T} \sim q(x_{1:T}|x_0)} \left[ \log \frac{q(x_{1:T}|x_0)}{p_\theta(x_{0:T})} \right]
 $$
 
-由此，正式定义整个扩散模型的终极损失函数目标：
+由此，正式定义整个扩散模型的终极损失函数目标，从个体转化为群体：
 
 $$
-L_{VLB} = \mathbb{E}_{q(x_{0:T})} \left[ \log \frac{q(x_{1:T}|x_0)}{p_\theta(x_{0:T})} \right] \ge -\mathbb{E}_{q(x_0)} \log p_\theta(x_0)
+L_{VLB} = \mathbb{E}_{q(\mathbf{x}_0)} \left[ \mathbb{E}_{q(\mathbf{x}_{1:T}|\mathbf{x}_0)} \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})} \right] = \mathbb{E}_{q(\mathbf{x}_{0:T})} \left[ \log \frac{q(\mathbf{x}_{1:T}|\mathbf{x}_0)}{p_\theta(\mathbf{x}_{0:T})} \right]\right]=\mathbb{E}_{q} \left[ \log \frac{q(x_{1:T}|x_0)}{p_\theta(x_{0:T})} \right] \ge - \mathbb{E}_{q(\mathbf{x}_0)} \left[\log p_\theta(x_0)\right]
 $$
 
 为了进一步对交叉熵上界 $L_{VLB}$ 进行展开与化简，我们需要将其拆解为单步的形式。经过多步贝叶斯公式代换与错项相消（Telescoping sum）， $L_{VLB}$ 最终可以完美转化并拆解为三个具有明确物理意义的独立项之和：
@@ -383,6 +383,69 @@ $$
 
 >>>>> 证明参考 ppdm.pdf 第 3 页
 
+### 6. 似然函数优化成 MSE 损失
+
+不让网络去猜方差，直接把 AI 预测分布的方差 $p_\theta$ 锁定成一个和 $\beta$ 相关的常数 $\sigma_t^2$ 。
+
+根据高斯分布的 KL 散度公式，所有包含方差的 $\log$ 项全部变成常数（记为 $C$ 不包含训练参数）。整个 KL 散度只剩下了两个分布 “均值” 之间的平方距离：
+
+$$
+L_{t-1} = \mathbb{E}_q \left[ \frac{1}{2\sigma_t^2} \|\tilde{\boldsymbol{\mu}}_t(x_t, x_0) - \boldsymbol{\mu}_\theta(x_t, t)\|^2 \right] + C
+$$
+
+真实的后验公式为：
+
+$$
+\tilde{\boldsymbol{\mu}}_t(x_t, x_0) = \frac{\sqrt{\bar{\alpha}_{t-1}}\beta_t}{1 - \bar{\alpha}_t}x_0 + \frac{\sqrt{\alpha_t}(1 - \bar{\alpha}_{t-1})}{1 - \bar{\alpha}_t}x_t
+$$
+
+但这个公式里包含不可知的干净原图 $x_0$ 。为了在训练时抹去 $x_0$ ：
+
+$$
+x_t = \sqrt{\bar{\alpha}_t}x_0 + \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon} \quad (\boldsymbol{\epsilon} \sim \mathcal{N}(0, I))
+$$
+
+反解出（前面已经证明过了）：
+
+$$
+x_0 = \frac{1}{\sqrt{\bar{\alpha}_t}}(x_t - \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon})
+$$
+
+将 $x_0$ 反解出来的公式代入，展开写出严格的复合代入形式：
+
+$$
+L_{t-1} - C = \mathbb{E}_{x_0, \boldsymbol{\epsilon}} \left[ \frac{1}{2\sigma_t^2} \left\| \tilde{\boldsymbol{\mu}}_t\left(x_t(x_0, \boldsymbol{\epsilon}), \frac{1}{\sqrt{\bar{\alpha}_t}}(x_t(x_0, \boldsymbol{\epsilon}) - \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon})\right) - \boldsymbol{\mu}_\theta(x_t(x_0, \boldsymbol{\epsilon}), t) \right\| ^2 \right]
+$$
+
+经过代数配平化简：
+
+$$
+= \mathbb{E}_{x_0, \boldsymbol{\epsilon}} \left[ \frac{1}{2\sigma_t^2} \left\| \frac{1}{\sqrt{\alpha_t}} \left( x_t(x_0, \boldsymbol{\epsilon}) - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}} \boldsymbol{\epsilon} \right) - \boldsymbol{\mu}_\theta(x_t(x_0, \boldsymbol{\epsilon}), t) \right\| ^2 \right]
+$$
+
+那做神经网络设计的时候，就强行让网络的预测均值 $\boldsymbol{\mu}_\theta$ 靠近并模仿这个均值结构，逼着网络只去预测未知噪声 $\boldsymbol{\epsilon}_\theta$ ：
+
+$$
+\boldsymbol{\mu}_\theta(x_t, t) = \tilde{\boldsymbol{\mu}}_t\left(x_t, \frac{1}{\sqrt{\bar{\alpha}_t}}(x_t - \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon}_\theta(x_t))\right) = \frac{1}{\sqrt{\alpha_t}} \left( x_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}} \boldsymbol{\epsilon}_\theta(x_t, t) \right)
+$$
+
+带入上面的式子到公式 $\|\tilde{\boldsymbol{\mu}}_t - \boldsymbol{\mu}_\theta\|^2$ 里面，让两个均值公式当场做减法：
+
+$$
+\left\| \frac{1}{\sqrt{\alpha_t}} \left( x_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}} \boldsymbol{\epsilon} \right) - \frac{1}{\sqrt{\alpha_t}} \left( x_t - \frac{\beta_t}{\sqrt{1 - \bar{\alpha}_t}} \boldsymbol{\epsilon}_\theta(x_t, t) \right) \right\| ^2
+$$
+
+前面的 $x_t$ 减去后面的 $x_t$，全部消掉。把括号外面的常数系数全部平方提到大括号外面。同时，把网络输入里的 $x_t$ 用重参数化展开式（ $\sqrt{\bar{\alpha}_t}x_0 + \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon}$ ）完整体现出来，整个式子精简为带有精确前缀系数的形态：
+
+$$
+\mathbb{E}_{x_0, \boldsymbol{\epsilon}} \left[ \frac{\beta_t^2}{2\sigma_t^2\alpha_t(1 - \bar{\alpha}_t)} \left\| \boldsymbol{\epsilon} - \boldsymbol{\epsilon}_\theta(\sqrt{\bar{\alpha}_t}x_0 + \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon}, t) \right\| ^2 \right]
+$$
+
+但在最终工程落地时，丢弃了前面复杂的理论系数（令其全部等于 1）。并加入对时间步 $t$ 在 $[1, T]$ 范围内的均匀随机采样 $\mathbb{E}_t$，最终的目标函数为：
+
+$$
+L_{\text{simple}}(\theta) := \mathbb{E}_{t, x_0, \boldsymbol{\epsilon}} \left[ \left\| \boldsymbol{\epsilon} - \boldsymbol{\epsilon}_\theta(\sqrt{\bar{\alpha}_t}x_0 + \sqrt{1 - \bar{\alpha}_t}\boldsymbol{\epsilon}, t) \right\| ^2 \right]
+  $$
 
 # DDPM 的一些 QA
 Q：网络到底是怎么运转的，为什么需要时间嵌入？
